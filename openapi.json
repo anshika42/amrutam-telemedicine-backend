@@ -1,0 +1,134 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Amrutam Telemedicine API",
+    "version": "1.0.0",
+    "description": "Node.js REST API for telemedicine users, doctor discovery, booking, consultations, prescriptions, and admin analytics. MFA uses TOTP; payment records remain pending because no payment provider is configured."
+  },
+  "servers": [{ "url": "http://localhost:3000/api/v1" }],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" }
+    }
+  },
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "summary": "Register patient",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["name", "email", "password"], "properties": { "name": {"type":"string"}, "email":{"type":"string","format":"email"}, "password":{"type":"string","minLength":12} } } } } },
+        "responses": { "201": {"description":"Patient registered"}, "409":{"description":"Email already exists"} }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "Login; elevated roles receive an MFA-enrollment token until MFA is enabled",
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"type": "object", "required": ["email", "password"], "properties": {"email": {"type": "string", "format": "email"}, "password": {"type": "string"}, "otp": {"type": "string", "pattern": "^[0-9]{6}$"}}}}}
+        },
+        "responses": { "200":{"description":"Access token returned or MFA setup required"}, "401":{"description":"Invalid credentials or MFA code"} }
+      }
+    },
+    "/doctors": {
+      "get": {
+        "summary": "Search doctors",
+        "parameters": [{"name":"q","in":"query","schema":{"type":"string","maxLength":100}},{"name":"specialty","in":"query","schema":{"type":"string","maxLength":100}},{"name":"limit","in":"query","schema":{"type":"integer","minimum":1,"maximum":100,"default":20}},{"name":"offset","in":"query","schema":{"type":"integer","minimum":0,"maximum":1000000,"default":0}}],
+        "responses": {"200":{"description":"Doctor list"}}
+      }
+    },
+    "/users/me": {
+      "get": {
+        "summary": "Read the authenticated user's account and profile",
+        "security": [{"bearerAuth": []}],
+        "responses": {"200": {"description": "Current user profile"}}
+      }
+    },
+    "/users/me/profile": {
+      "patch": {
+        "summary": "Update the authenticated user's contact profile",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"type": "object", "properties": {"phone": {"type": "string", "maxLength": 30}, "dateOfBirth": {"type": "string", "format": "date"}, "address": {"type": "string", "maxLength": 1000}}, "minProperties": 1}}}
+        },
+        "responses": {"200": {"description": "Updated profile"}, "400": {"description": "Invalid profile data"}}
+      }
+    },
+    "/availability": {
+      "get":{
+        "summary":"List open future slots",
+        "parameters":[{"name":"doctorId","in":"query","required":true,"schema":{"type":"string","format":"uuid"}}],
+        "responses":{"200":{"description":"Available slots"}}
+      },
+      "post":{
+        "summary":"Create availability slot",
+        "security":[{"bearerAuth":[]}],
+        "requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["doctorId","startsAt","endsAt"],"properties":{"doctorId":{"type":"string","format":"uuid"},"startsAt":{"type":"string","format":"date-time"},"endsAt":{"type":"string","format":"date-time"}}}}}},
+        "responses":{"201":{"description":"Slot created"},"400":{"description":"Invalid or non-future slot"}}
+      }
+    },
+    "/bookings": {
+      "post":{
+        "summary":"Book a slot; retries with the same key and payload replay the original response",
+        "security":[{"bearerAuth":[]}],
+        "parameters":[{"name":"Idempotency-Key","in":"header","required":true,"schema":{"type":"string","minLength":8,"maxLength":200}}],
+        "requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["slotId"],"properties":{"slotId":{"type":"string","format":"uuid"}}}}}},
+        "responses":{"201":{"description":"Booking created or replayed"},"400":{"description":"Invalid request"},"409":{"description":"Slot or idempotency conflict"}}
+      }
+    },
+    "/bookings/mine":{"get":{"summary":"List current patient's bookings","security":[{"bearerAuth":[]}],"responses":{"200":{"description":"Bookings"}}}},
+    "/consultations/mine":{"get":{"summary":"List consultations for the current patient or doctor","security":[{"bearerAuth":[]}],"responses":{"200":{"description":"Current user's consultations"}}}},
+    "/consultations/{id}/status":{
+      "patch":{
+        "summary":"Update consultation lifecycle; repeating the current status is idempotent",
+        "security":[{"bearerAuth":[]}],
+        "parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}],
+        "requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["status"],"properties":{"status":{"type":"string","enum":["in_progress","completed","cancelled"]}}}}}},
+        "responses":{"200":{"description":"Status updated"},"409":{"description":"Invalid status transition"}}
+      }
+    },
+    "/prescriptions":{
+      "post":{
+        "summary":"Create a prescription for a completed consultation; identical retries are idempotent",
+        "security":[{"bearerAuth":[]}],
+        "requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["consultationId","details"],"properties":{"consultationId":{"type":"string","format":"uuid"},"details":{"type":"string","minLength":1,"maxLength":10000}}}}}},
+        "responses":{"201":{"description":"Prescription created"},"200":{"description":"Existing matching prescription returned"},"409":{"description":"Conflicting prescription exists"}}
+      }
+    },
+    "/prescriptions/consultation/{consultationId}":{
+      "get":{
+        "summary":"Read a prescription when the caller is the patient, assigned doctor, or admin",
+        "security":[{"bearerAuth":[]}],
+        "parameters":[{"name":"consultationId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}],
+        "responses":{"200":{"description":"Prescription list"},"401":{"description":"Authentication required"}}
+      }
+    },
+    "/payments/intents":{
+      "post":{
+        "summary":"Create a pending intent only; no payment is charged",
+        "security":[{"bearerAuth":[]}],
+        "requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["consultationId","amountMinor"],"properties":{"consultationId":{"type":"string","format":"uuid"},"amountMinor":{"type":"integer","minimum":1},"currency":{"type":"string","pattern":"^[A-Z]{3}$","default":"INR"}}}}}},
+        "responses":{"201":{"description":"Pending payment intent created"},"200":{"description":"Existing matching intent returned"},"409":{"description":"Existing intent has different details"}}
+      }
+    },
+    "/auth/mfa/setup": {
+      "post": {
+        "summary": "Begin TOTP MFA enrollment; accepts an MFA-setup token for an unenrolled doctor/admin",
+        "security": [{"bearerAuth": []}],
+        "responses": {"200": {"description": "One-time TOTP secret and provisioning URI"}, "409": {"description": "MFA is already enabled"}}
+      }
+    },
+    "/auth/mfa/verify": {
+      "post": {
+        "summary": "Verify an enrollment code and enable MFA",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"type": "object", "required": ["otp"], "properties": {"otp": {"type": "string", "pattern": "^[0-9]{6}$"}}}}}
+        },
+        "responses": {"200": {"description": "MFA enabled"}, "400": {"description": "Invalid code"}}
+      }
+    },
+    "/analytics/summary":{"get":{"summary":"Admin analytics summary","security":[{"bearerAuth":[]}],"responses":{"200":{"description":"Aggregate counts"}}}}
+  }
+}

@@ -1,0 +1,12 @@
+const router = require('express').Router();
+router.use('/auth', require('../modules/auth/auth.routes'));
+router.use('/users', require('../modules/users/users.routes'));
+router.use('/doctors', require('../modules/doctors/doctors.routes'));
+router.use('/availability', require('../modules/availability/availability.routes'));
+router.use('/bookings', require('../modules/bookings/bookings.routes'));
+router.use('/consultations', require('../modules/consultations/consultations.routes'));
+router.use('/prescriptions', require('../modules/prescriptions/prescriptions.routes'));
+router.use('/payments', require('../modules/payments/payments.routes'));
+router.use('/search', require('../modules/search/search.routes'));
+router.use('/analytics', require('../modules/analytics/analytics.routes'));
+module.exports = router;
