@@ -34,6 +34,33 @@
         "summary": "Search doctors",
         "parameters": [{"name":"q","in":"query","schema":{"type":"string","maxLength":100}},{"name":"specialty","in":"query","schema":{"type":"string","maxLength":100}},{"name":"limit","in":"query","schema":{"type":"integer","minimum":1,"maximum":100,"default":20}},{"name":"offset","in":"query","schema":{"type":"integer","minimum":0,"maximum":1000000,"default":0}}],
         "responses": {"200":{"description":"Doctor list"}}
+      },
+      "post": {
+        "summary": "Create a doctor profile for an existing user (admin only)",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["userId", "specialty"],
+                "properties": {
+                  "userId": {"type": "string", "format": "uuid"},
+                  "specialty": {"type": "string", "minLength": 1, "maxLength": 120},
+                  "bio": {"type": "string", "maxLength": 2000}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {"description": "Doctor profile created"},
+          "401": {"description": "Authentication required"},
+          "403": {"description": "Admin role and completed MFA required"},
+          "404": {"description": "Active user not found"},
+          "409": {"description": "Doctor profile already exists"}
+        }
       }
     },
     "/users/me": {
