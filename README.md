@@ -9,12 +9,12 @@ Node.js + Express + PostgreSQL modular-monolith backend for telemedicine workflo
 - Git
 
 ## Quick start (Docker)
-1. Copy `.env.example` to `.env` and set `JWT_SECRET` to a random value of at least 32 characters. Set `MFA_ENCRYPTION_KEY` to exactly 64 hexadecimal characters (32 random bytes); the example value is development-only.
-2. Start services from the project root:
+
+1. Start services from the project root:
    ```bash
    docker compose -f infra/docker-compose.yml up --build
    ```
-3. Verify:
+2. Verify:
    - `GET http://localhost:3000/health/live`
    - `GET http://localhost:3000/health/ready`
    - Swagger UI: `http://localhost:3000/docs`
